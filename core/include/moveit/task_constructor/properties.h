@@ -271,5 +271,20 @@ public:
 template <>
 void PropertyMap::set<boost::any>(const std::string& name, const boost::any& value);
 
+// HACK: provide a serialization method for std::set, provide fallback serialization
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::set<T>& s) {
+	os << "{";
+	bool first = true;
+	for (const auto& item : s) {
+		if (!first)
+			os << ", ";
+		os << item;
+		first = false;
+	}
+	os << "}";
+	return os;
+}
+
 } // namespace task_constructor
 } // namespace moveit
