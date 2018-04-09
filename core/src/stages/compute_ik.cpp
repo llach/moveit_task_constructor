@@ -61,24 +61,12 @@ ComputeIK::ComputeIK(const std::string &name, Stage::pointer &&child)
 	p.declare<std::string>("default_pose", "", "default joint pose of active group (defines cost of IK)");
 	p.declare<uint32_t>("max_ik_solutions", 1);
 	p.declare<bool>("ignore_collisions", false);
+	p.declare<std::set<std::string>>("forward_properties", "to-be-forwarded properties from input");
 
 	// ik_frame and target_pose are read from the interface
 	p.declare<geometry_msgs::PoseStamped>("ik_frame", "frame to be moved towards goal pose");
 	p.declare<geometry_msgs::PoseStamped>("target_pose", "goal pose for ik frame");
 	p.configureInitFrom(Stage::INTERFACE, {"target_pose"});
-}
-
-void ComputeIK::setTimeout(double timeout){
-	setProperty("timeout", timeout);
-}
-
-void ComputeIK::setEndEffector(const std::string &eef){
-	setProperty("eef", eef);
-}
-
-void ComputeIK::setIKFrame(const geometry_msgs::PoseStamped &pose)
-{
-	setProperty("ik_frame", pose);
 }
 
 void ComputeIK::setIKFrame(const Eigen::Affine3d &pose, const std::string &link)
@@ -89,11 +77,6 @@ void ComputeIK::setIKFrame(const Eigen::Affine3d &pose, const std::string &link)
 	setIKFrame(pose_msg);
 }
 
-void ComputeIK::setTargetPose(const geometry_msgs::PoseStamped &pose)
-{
-	setProperty("target_pose", pose);
-}
-
 void ComputeIK::setTargetPose(const Eigen::Affine3d &pose, const std::string &frame)
 {
 	geometry_msgs::PoseStamped pose_msg;
@@ -102,22 +85,15 @@ void ComputeIK::setTargetPose(const Eigen::Affine3d &pose, const std::string &fr
 	setTargetPose(pose_msg);
 }
 
-void ComputeIK::setMaxIKSolutions(uint32_t n){
-	setProperty("max_ik_solutions", n);
-}
-
-void ComputeIK::setIgnoreCollisions(bool flag)
-{
-	setProperty("ignore_collisions", flag);
-}
-
 // found IK solutions with a flag indicating validity
 typedef std::vector<std::vector<double>> IKSolutions;
 
 namespace {
 
+// TODO: move to MoveIt, lift active_components_only_ from fcl to common interface
 bool isTargetPoseColliding(const planning_scene::PlanningScenePtr& scene,
-                           Eigen::Affine3d pose, const robot_model::LinkModel* link)
+                           Eigen::Affine3d pose, const robot_model::LinkModel* link,
+                           collision_detection::CollisionResult* collision_result = nullptr)
 {
 	robot_state::RobotState& robot_state = scene->getCurrentStateNonConst();
 
@@ -148,9 +124,23 @@ bool isTargetPoseColliding(const planning_scene::PlanningScenePtr& scene,
 
 	// check collision with the world using the padded version
 	collision_detection::CollisionRequest req;
-	collision_detection::CollisionResult res;
+	collision_detection::CollisionResult result;
+	req.contacts = (collision_result != nullptr);
+	collision_detection::CollisionResult& res = collision_result ? *collision_result : result;
 	scene->checkCollision(req, res, robot_state, acm);
 	return res.collision;
+}
+
+std::string listCollisionPairs(const collision_detection::CollisionResult::ContactMap &contacts,
+                               const std::string& separator)
+{
+	std::string result;
+	for (const auto& contact : contacts) {
+		if (!result.empty())
+			result.append(separator);
+		result.append(contact.first.first).append(" - ").append(contact.first.second);
+	}
+	return result;
 }
 
 bool validateEEF(const PropertyMap& props, const moveit::core::RobotModelConstPtr& robot_model,
@@ -211,6 +201,9 @@ void ComputeIK::init(const moveit::core::RobotModelConstPtr& robot_model)
 
 void ComputeIK::onNewSolution(const SolutionBase &s)
 {
+	if (s.isFailure())
+		return;
+
 	assert(s.start() && s.end());
 	assert(s.start()->scene() == s.end()->scene()); // wrapped child should be a generator
 	planning_scene::PlanningScenePtr sandbox_scene = s.start()->scene()->diff();
@@ -279,9 +272,10 @@ void ComputeIK::onNewSolution(const SolutionBase &s)
 	}
 
 	// validate placed link for collisions
-	bool colliding = isTargetPoseColliding(sandbox_scene, target_pose, link);
+	collision_detection::CollisionResult collisions;
+	bool colliding = isTargetPoseColliding(sandbox_scene, target_pose, link, &collisions);
 	if (colliding && !storeFailures()) {
-		ROS_ERROR("eef in collision");
+		ROS_WARN_STREAM("eef in collision: " << listCollisionPairs(collisions.contacts, "\n"));
 		return;
 	}
 	robot_state::RobotState& sandbox_state = sandbox_scene->getCurrentStateNonConst();
@@ -304,7 +298,8 @@ void ComputeIK::onNewSolution(const SolutionBase &s)
 		generateCollisionMarkers(sandbox_state, appender, link_to_visualize);
 		std::copy(failure_markers.begin(), failure_markers.end(), std::back_inserter(solution.markers()));
 		solution.setCost(std::numeric_limits<double>::infinity());  // mark solution as failure
-		solution.setName("eef in collision");
+		// TODO: visualize collisions
+		solution.setName("eef in collision: " + listCollisionPairs(collisions.contacts, ", "));
 		spawn(InterfaceState(sandbox_scene), std::move(solution));
 		return;
 	} else
@@ -373,7 +368,14 @@ void ComputeIK::onNewSolution(const SolutionBase &s)
 			robot_state.setJointGroupPositions(jmg, ik_solutions.back().data());
 			robot_state.update();
 
-			spawn(InterfaceState(scene), std::move(solution));
+			InterfaceState state(scene);
+			const boost::any &forwards = props.get("forward_properties");
+			if (!forwards.empty()) {
+				auto p = s.start()->properties();
+				p.exposeTo(state.properties(), boost::any_cast<std::set<std::string>>(forwards));
+			}
+
+			spawn(std::move(state), std::move(solution));
 		}
 
 		if (!succeeded && max_ik_solutions == 1)
