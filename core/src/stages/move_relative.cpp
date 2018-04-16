@@ -100,14 +100,14 @@ bool MoveRelative::compute(const InterfaceState &state, planning_scene::Planning
 
 	boost::any goal = props.get("joints");
 	if (!goal.empty()) {
-		const auto& accepted = jmg->getJointModels();
+		const auto& accepted = jmg->getJointModelNames();
 		auto& robot_state = scene->getCurrentStateNonConst();
 		const auto& joints = boost::any_cast<std::map<std::string, double>>(goal);
 		for (auto j : joints) {
 			int index = robot_state.getRobotModel()->getVariableIndex(j.first);
 			auto jm = scene->getRobotModel()->getJointModel(index);
-			if (std::find(accepted.begin(), accepted.end(), jm) == accepted.end()) {
-				ROS_WARN_STREAM_NAMED("MoveRelative", "Ignoring joint " << jm->getName() << " that is not part of group " << group);
+			if (std::find(accepted.begin(), accepted.end(), j.first) == accepted.end()) {
+				ROS_WARN_STREAM_NAMED("MoveRelative", "Ignoring joint " << j.first << " that is not part of group " << group);
 				continue;
 			}
 			robot_state.setVariablePosition(index, robot_state.getVariablePosition(index) + j.second);
