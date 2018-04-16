@@ -87,7 +87,7 @@ bool MoveTo::getJointStateGoal(moveit::core::RobotState& state,
 	if (!goal.empty()) {
 		const std::string& named_joint_pose = boost::any_cast<std::string>(goal);
 		if (!state.setToDefaultValues(jmg, named_joint_pose))
-			throw InitStageException(*this, "Unknown joint pose:" + named_joint_pose);
+			throw InitStageException(*this, "Unknown joint pose: " + named_joint_pose);
 		return true;
 	}
 
