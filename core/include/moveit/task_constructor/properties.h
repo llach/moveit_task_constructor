@@ -286,5 +286,20 @@ std::ostream& operator<<(std::ostream& os, const std::set<T>& s) {
 	return os;
 }
 
+// provide a serialization method for std::map
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::map<std::string, T>& m) {
+	os << "{";
+	bool first = true;
+	for (const auto& pair : m) {
+		if (!first)
+			os << ", ";
+		os << pair.first << " : " << pair.second;
+		first = false;
+	}
+	os << "}";
+	return os;
+}
+
 } // namespace task_constructor
 } // namespace moveit
