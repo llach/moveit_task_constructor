@@ -1234,7 +1234,8 @@ void MergerPrivate::merge(const ChildSolutionList& sub_solutions, const moveit::
 
 	moveit::core::JointModelGroup *jmg = jmg_merged_.get();
 	robot_trajectory::RobotTrajectoryPtr merged = task_constructor::merge(sub_trajectories, state, jmg);
-	jmg_merged_.reset(jmg);
+	if (jmg_merged_.get() != jmg)
+		jmg_merged_.reset(jmg);
 	if (!merged) return;
 
 	SubTrajectory t(merged);

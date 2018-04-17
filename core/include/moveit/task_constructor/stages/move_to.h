@@ -44,6 +44,9 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PointStamped.h>
 
+namespace moveit { namespace core {
+class RobotState;
+} }
 namespace moveit { namespace task_constructor { namespace stages {
 
 class MoveTo : public PropagatingEitherWay {
@@ -54,17 +57,32 @@ public:
 	bool computeForward(const InterfaceState& from) override;
 	bool computeBackward(const InterfaceState& to) override;
 
-	void setGroup(const std::string& group);
-	void setLink(const std::string& link);
+	void setGroup(const std::string& group) {
+		setProperty("group", group);
+	}
+	void setLink(const std::string& link) {
+		setProperty("link", link);
+	}
 
 	/// move link to given pose
-	void setGoal(const geometry_msgs::PoseStamped& pose);
+	void setGoal(const geometry_msgs::PoseStamped& pose) {
+		setProperty("pose", pose);
+	}
+
 	/// move link to given point, keeping current orientation
-	void setGoal(const geometry_msgs::PointStamped& point);
-    /// move joint model group to given named pose
-    void setGoal(const std::string& joint_pose);
-    /// move joints specified in msg to their target values
-    void setGoal(const moveit_msgs::RobotState& robot_state);
+	void setGoal(const geometry_msgs::PointStamped& point) {
+		setProperty("point", point);
+	}
+
+	/// move joint model group to given named pose
+	void setGoal(const std::string& named_joint_pose) {
+		setProperty("named_joint_pose", named_joint_pose);
+	}
+
+	/// move joints specified in msg to their target values
+	void setGoal(const moveit_msgs::RobotState& robot_state) {
+		setProperty("joint_pose", robot_state);
+	}
 
 	void setPathConstraints(moveit_msgs::Constraints path_constraints){
 		setProperty("path_constraints", std::move(path_constraints));
@@ -73,6 +91,7 @@ public:
 protected:
 	bool compute(const InterfaceState& state, planning_scene::PlanningScenePtr &scene,
 	             SubTrajectory &trajectory, Direction dir);
+	bool getJointStateGoal(moveit::core::RobotState& state, const core::RobotModelConstPtr& robot_model);
 
 protected:
 	solvers::PlannerInterfacePtr planner_;
