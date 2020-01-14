@@ -1,4 +1,5 @@
 add_library(${PROJECT_NAME}_stages
+	${PROJECT_INCLUDE}/stages/set_controller.h
 	${PROJECT_INCLUDE}/stages/modify_planning_scene.h
 	${PROJECT_INCLUDE}/stages/fix_collision_objects.h
 
@@ -18,6 +19,7 @@ add_library(${PROJECT_NAME}_stages
 	${PROJECT_INCLUDE}/stages/simple_grasp.h
 	${PROJECT_INCLUDE}/stages/pick.h
 
+	set_controller.cpp
 	modify_planning_scene.cpp
 	fix_collision_objects.cpp
 
