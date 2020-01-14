@@ -37,7 +37,7 @@
 #include <moveit/task_constructor/stages/fixed_state.h>
 #include <moveit/task_constructor/solvers/cartesian_path.h>
 #include <moveit/task_constructor/solvers/joint_interpolation.h>
-#include <moveit/task_constructor/stages/move_to.h>
+#include <moveit/task_constructor/stages/set_controller.h>
 #include <moveit/task_constructor/stages/move_relative.h>
 #include <moveit/task_constructor/stages/connect.h>
 
@@ -70,12 +70,24 @@ Task createTask() {
 	}
 
 	{
+		auto stage = std::make_unique<stages::SetController>("set_via_ctrl");
+		stage->addControllerName("fake_via_panda_arm_controller");
+		t.add(std::move(stage));
+	}
+
+	{
 		auto stage = std::make_unique<stages::MoveRelative>("x +0.2", cartesian);
 		stage->setGroup(group);
 		geometry_msgs::Vector3Stamped direction;
 		direction.header.frame_id = "world";
 		direction.vector.x = 0.2;
 		stage->setDirection(direction);
+		t.add(std::move(stage));
+	}
+
+	{
+		auto stage = std::make_unique<stages::SetController>("set_last_ctrl");
+		stage->addControllerName("fake_last_panda_arm_controller");
 		t.add(std::move(stage));
 	}
 
@@ -123,10 +135,21 @@ Task createTask() {
 	return t;
 }
 
+std::string buildControllerString(moveit_task_constructor_msgs::SubTrajectory st) {
+	if (st.controller_names.empty())
+		return "";
+
+	std::stringstream ss;
+	for (auto cn : st.controller_names) {
+		ss << cn.data << ";";
+	}
+	return ss.str();
+}
+
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "mtc_tutorial");
 	// run an asynchronous spinner to communicate with the move_group node and rviz
-	ros::AsyncSpinner spinner(1);
+	ros::AsyncSpinner spinner(4);
 	spinner.start();
 
 	actionlib::SimpleActionClient<moveit_task_constructor_msgs::ExecuteTaskSolutionAction> ac("execute_task_solution",
@@ -135,11 +158,11 @@ int main(int argc, char** argv) {
 
 	auto task = createTask();
 	try {
-		if (!task.plan()) {
+		if (task.plan()) {
+			task.introspection().publishSolution(*task.solutions().front());
+		} else {
 			std::cerr << "planning failed" << std::endl;
 			return 0;
-		} else {
-			task.introspection().publishSolution(*task.solutions().front());
 		}
 	} catch (const InitStageException& ex) {
 		std::cerr << "planning failed with exception" << std::endl << ex << task;
@@ -147,6 +170,14 @@ int main(int argc, char** argv) {
 
 	moveit_task_constructor_msgs::ExecuteTaskSolutionGoal execute_goal;
 	task.solutions().front()->fillMessage(execute_goal.solution);
+
+	printf("SubTrajectories: %zu\n", execute_goal.solution.sub_trajectory.size());
+
+	for (int i = 0; i < execute_goal.solution.sub_trajectory.size(); i++) {
+		auto st = execute_goal.solution.sub_trajectory[i];
+		printf("\tST%d with %zu points and controllers \"%s\"\n", i, st.trajectory.joint_trajectory.points.size(),
+		       buildControllerString(st).c_str());
+	}
 
 	ac.sendGoal(execute_goal);
 	ac.waitForResult();
