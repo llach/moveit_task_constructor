@@ -64,6 +64,8 @@ private:
 	void goalCallback(const moveit_task_constructor_msgs::ExecuteTaskSolutionGoalConstPtr& goal);
 	void preemptCallback();
 
+	std::vector<std::string> msgToString(std::vector<std_msgs::String> sv);
+
 	std::unique_ptr<actionlib::SimpleActionServer<moveit_task_constructor_msgs::ExecuteTaskSolutionAction>> as_;
 };
 

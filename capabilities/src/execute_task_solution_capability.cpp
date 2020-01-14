@@ -76,7 +76,7 @@ const moveit::core::JointModelGroup* findJointModelGroup(const moveit::core::Rob
 
 	return nullptr;
 }
-}
+}  // namespace
 
 namespace move_group {
 
@@ -135,6 +135,8 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(const moveit_task_constr
 		state = scene->getCurrentState();
 	}
 
+	std::vector<std::string> current_controller_names;
+
 	plan.plan_components_.reserve(solution.sub_trajectory.size());
 	for (size_t i = 0; i < solution.sub_trajectory.size(); ++i) {
 		const moveit_task_constructor_msgs::SubTrajectory& sub_traj = solution.sub_trajectory[i];
@@ -167,6 +169,13 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(const moveit_task_constr
 		}
 		exec_traj.trajectory_ = std::make_shared<robot_trajectory::RobotTrajectory>(model, group);
 		exec_traj.trajectory_->setRobotTrajectoryMsg(state, sub_traj.trajectory);
+		exec_traj.controller_names_ = current_controller_names;
+
+		// if this is a controller change stage, we store the controller names for the next SubTrajectory
+		std::vector<std::string> sub_traj_controller_names = msgToString(solution.sub_trajectory[i].controller_names);
+		if (current_controller_names != sub_traj_controller_names) {
+			current_controller_names = sub_traj_controller_names;
+		}
 
 		/* TODO add action feedback and markers */
 		exec_traj.effect_on_success_ = [this, sub_traj, description](const plan_execution::ExecutableMotionPlan*) {
@@ -194,6 +203,20 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(const moveit_task_constr
 	}
 
 	return true;
+}
+
+std::vector<std::string> ExecuteTaskSolutionCapability::msgToString(std::vector<std_msgs::String> sv) {
+	std::vector<std::string> stdv;
+	if (sv.empty())
+		return stdv;
+
+	for (auto str : sv) {
+		std::string data = sv.data()->data;
+		if (data == "")
+			continue;
+		stdv.push_back(data);
+	}
+	return stdv;
 }
 
 }  // namespace move_group
