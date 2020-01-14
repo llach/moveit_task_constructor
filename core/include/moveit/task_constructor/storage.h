@@ -183,10 +183,10 @@ private:
 
 	// restrict access to some functions to ensure consistency
 	// (we need to set/unset InterfaceState::owner_)
-	using base_type::moveTo;
-	using base_type::moveFrom;
-	using base_type::insert;
 	using base_type::erase;
+	using base_type::insert;
+	using base_type::moveFrom;
+	using base_type::moveTo;
 	using base_type::remove_if;
 };
 
@@ -265,17 +265,21 @@ class SubTrajectory : public SolutionBase
 public:
 	SubTrajectory(
 	    const robot_trajectory::RobotTrajectoryConstPtr& trajectory = robot_trajectory::RobotTrajectoryConstPtr(),
-	    double cost = 0.0, std::string comment = "")
-	  : SolutionBase(nullptr, cost, std::move(comment)), trajectory_(trajectory) {}
+	    double cost = 0.0, std::string comment = "", std::vector<std_msgs::String> controller_names = {})
+	  : SolutionBase(nullptr, cost, std::move(comment)), trajectory_(trajectory), controller_names_(controller_names) {}
 
 	robot_trajectory::RobotTrajectoryConstPtr trajectory() const { return trajectory_; }
 	void setTrajectory(const robot_trajectory::RobotTrajectoryPtr& t) { trajectory_ = t; }
+	void setControllerNames(const std::vector<std_msgs::String>& cn) { controller_names_ = cn; }
 
 	void fillMessage(moveit_task_constructor_msgs::Solution& msg, Introspection* introspection = nullptr) const override;
 
 private:
 	// actual trajectory, might be empty
 	robot_trajectory::RobotTrajectoryConstPtr trajectory_;
+
+	// list of controller names to be used for this trajectory. can be empty
+	std::vector<std_msgs::String> controller_names_;
 };
 MOVEIT_CLASS_FORWARD(SubTrajectory)
 
@@ -315,8 +319,8 @@ template <>
 inline const InterfaceState::Solutions& SolutionBase::trajectories<Interface::BACKWARD>() const {
 	return start_->incomingTrajectories();
 }
-}
-}
+}  // namespace task_constructor
+}  // namespace moveit
 
 namespace std {
 // comparison for pointers to SolutionBase: compare based on value
@@ -327,4 +331,4 @@ struct less<moveit::task_constructor::SolutionBase*>
 		return *x < *y;
 	}
 };
-}
+}  // namespace std

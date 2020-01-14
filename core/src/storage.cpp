@@ -155,6 +155,8 @@ void SolutionBase::fillInfo(moveit_task_constructor_msgs::SolutionInfo& info, In
 void SubTrajectory::fillMessage(moveit_task_constructor_msgs::Solution& msg, Introspection* introspection) const {
 	msg.sub_trajectory.emplace_back();
 	moveit_task_constructor_msgs::SubTrajectory& t = msg.sub_trajectory.back();
+	t.controller_names = controller_names_;
+
 	SolutionBase::fillInfo(t.info, introspection);
 
 	if (trajectory())
@@ -201,5 +203,5 @@ void SolutionSequence::fillMessage(moveit_task_constructor_msgs::Solution& msg, 
 		}
 	}
 }
-}
-}
+}  // namespace task_constructor
+}  // namespace moveit
